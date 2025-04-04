@@ -1,0 +1,40 @@
+From de2f0aa9d1c9a9ea75f4a30de125c253080e4a2f Mon Sep 17 00:00:00 2001
+From: Byoungchan Lee <byoungchan.lee@gmx.com>
+Date: Fri, 4 Apr 2025 21:05:54 +0900
+Subject: [PATCH 2/2] Optimize ZipEntry handling and memory usage in IoUtil
+
+---
+ .../java/org/pantsbuild/jarjar/util/IoUtil.java   | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/src/main/java/org/pantsbuild/jarjar/util/IoUtil.java b/src/main/java/org/pantsbuild/jarjar/util/IoUtil.java
+index 5724da4..57e9f94 100644
+--- a/src/main/java/org/pantsbuild/jarjar/util/IoUtil.java
++++ b/src/main/java/org/pantsbuild/jarjar/util/IoUtil.java
+@@ -116,13 +116,18 @@ public class IoUtil {
+                 }
+                 else
+                 {
+-                    final ZipEntry outputEntry = new ZipEntry(inputEntry);
++                    // Create a new entry with just the name, not copying compression attributes
++                    final ZipEntry outputEntry = new ZipEntry(inputEntry.getName());
+                     outputStream.putNextEntry(outputEntry);
+-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
++                    
++                    // Directly pipe from input to output without buffering in memory
+                     final InputStream is = inputZip.getInputStream(inputEntry);
+-                    IoUtil.pipe(is, baos, buf);
+-                    is.close();
+-                    outputStream.write(baos.toByteArray());
++                    try {
++                        IoUtil.pipe(is, outputStream, buf);
++                    } finally {
++                        is.close();
++                    }
++                    outputStream.closeEntry(); // Explicitly close entry
+                 }
+             }
+         } finally {
+-- 
+2.49.0
+

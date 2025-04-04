@@ -1,0 +1,326 @@
+From c3db76c9f5237fa712d4299ddb60f7aebc5f8f04 Mon Sep 17 00:00:00 2001
+From: Byoungchan Lee <byoungchan.lee@gmx.com>
+Date: Fri, 4 Apr 2025 21:03:05 +0900
+Subject: [PATCH 1/2] Add Bazel build configuration for jarjar
+
+---
+ BUILD                                         | 17 +++++
+ MODULE.bazel                                  | 63 +++++++++++++++++++
+ build-support/ivy/BUILD.netrc                 |  3 -
+ lib/BUILD                                     | 41 ------------
+ src/main/java/org/pantsbuild/jarjar/BUILD     | 56 -----------------
+ src/test/BUILD                                |  4 --
+ src/test/java/org/pantsbuild/jarjar/BUILD     | 20 ------
+ .../java/org/pantsbuild/jarjar/example/BUILD  |  4 --
+ .../org/pantsbuild/jarjar/integration/BUILD   | 35 -----------
+ 9 files changed, 80 insertions(+), 163 deletions(-)
+ create mode 100644 BUILD
+ create mode 100644 MODULE.bazel
+ delete mode 100644 build-support/ivy/BUILD.netrc
+ delete mode 100644 lib/BUILD
+ delete mode 100644 src/main/java/org/pantsbuild/jarjar/BUILD
+ delete mode 100644 src/test/BUILD
+ delete mode 100644 src/test/java/org/pantsbuild/jarjar/BUILD
+ delete mode 100644 src/test/java/org/pantsbuild/jarjar/example/BUILD
+ delete mode 100644 src/test/java/org/pantsbuild/jarjar/integration/BUILD
+
+diff --git a/BUILD b/BUILD
+new file mode 100644
+index 0000000..1a7e9be
+--- /dev/null
++++ b/BUILD
+@@ -0,0 +1,17 @@
++load("@rules_java//java:defs.bzl", "java_library", "java_binary")
++
++package(default_visibility = ["//visibility:public"])
++
++java_library(
++    name = "jarjar",
++    srcs = glob(["src/main/java/org/pantsbuild/jarjar/**/*.java"], allow_empty = True),
++    resources = [
++        "src/main/java/org/pantsbuild/jarjar/help.txt",
++    ],
++    deps = [
++        "@maven//:org_apache_ant_ant",
++        "@maven//:org_ow2_asm_asm_commons",
++        "@maven//:org_ow2_asm_asm",
++        "@maven//:org_apache_maven_maven_plugin_api",
++    ],
++)
+diff --git a/MODULE.bazel b/MODULE.bazel
+new file mode 100644
+index 0000000..47ed335
+--- /dev/null
++++ b/MODULE.bazel
+@@ -0,0 +1,63 @@
++module(name = "jarjar")
++
++bazel_dep(name = "rules_java", version = "8.11.0")
++bazel_dep(name = "rules_jvm_external", version = "6.7")
++
++maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
++maven.install(
++  name = "maven",
++  artifacts = [
++    "org.apache.ant:ant:1.9.9",
++    "org.ow2.asm:asm:7.0",
++    "org.ow2.asm:asm-commons:7.0",
++    "org.apache.maven:maven-plugin-api:3.3.9",
++  ],
++  repositories = [
++      "https://maven.google.com",
++      "https://repo1.maven.org/maven2",
++  ],
++)
++use_repo(maven, "maven")
++
++
++# jar_library(
++#   name='asm',
++#   jars=[
++#     jar('org.ow2.asm', 'asm', '7.0'),
++#   ]
++# )
++#
++# jar_library(
++#   name='asm-commons',
++#   jars=[
++#     jar('org.ow2.asm', 'asm-commons', '7.0'),
++#   ]
++# )
++#
++# jar_library(
++#   name='ant',
++#   jars=[
++#     jar('org.apache.ant', 'ant', '1.9.9'),
++#   ]
++# )
++#
++# jar_library(
++#   name='maven-plugin-api',
++#   jars=[
++#     jar('org.apache.maven', 'maven-plugin-api', '3.3.9'),
++#   ]
++# )
++#
++# jar_library(
++#   name='junit',
++#   jars=[
++#     jar('junit', 'junit', '4.12'),
++#   ]
++# )
++#
++# jar_library(
++#   name='commons-lang3',
++#   jars=[
++#     jar('org.apache.commons', 'commons-lang3', '3.7'),
++#   ]
++# )
+diff --git a/build-support/ivy/BUILD.netrc b/build-support/ivy/BUILD.netrc
+deleted file mode 100644
+index 1d2b6e3..0000000
+--- a/build-support/ivy/BUILD.netrc
++++ /dev/null
+@@ -1,3 +0,0 @@
+-# Enable ~/.netrc for credentials management of jvm publishing.
+-#   see: http://www.pantsbuild.org/publish.html#enabling-pants-publish
+-netrc_credentials(name='netrc')
+diff --git a/lib/BUILD b/lib/BUILD
+deleted file mode 100644
+index b3c3678..0000000
+--- a/lib/BUILD
++++ /dev/null
+@@ -1,41 +0,0 @@
+-jar_library(
+-  name='asm',
+-  jars=[
+-    jar('org.ow2.asm', 'asm', '7.0'),
+-  ]
+-)
+-
+-jar_library(
+-  name='asm-commons',
+-  jars=[
+-    jar('org.ow2.asm', 'asm-commons', '7.0'),
+-  ]
+-)
+-
+-jar_library(
+-  name='ant',
+-  jars=[
+-    jar('org.apache.ant', 'ant', '1.9.9'),
+-  ]
+-)
+-
+-jar_library(
+-  name='maven-plugin-api',
+-  jars=[
+-    jar('org.apache.maven', 'maven-plugin-api', '3.3.9'),
+-  ]
+-)
+-
+-jar_library(
+-  name='junit',
+-  jars=[
+-    jar('junit', 'junit', '4.12'),
+-  ]
+-)
+-
+-jar_library(
+-  name='commons-lang3',
+-  jars=[
+-    jar('org.apache.commons', 'commons-lang3', '3.7'),
+-  ]
+-)
+diff --git a/src/main/java/org/pantsbuild/jarjar/BUILD b/src/main/java/org/pantsbuild/jarjar/BUILD
+deleted file mode 100644
+index ef08700..0000000
+--- a/src/main/java/org/pantsbuild/jarjar/BUILD
++++ /dev/null
+@@ -1,56 +0,0 @@
+-java_library(
+-  name='jarjar',
+-  provides=artifact(
+-    org='org.pantsbuild',
+-    name='jarjar',
+-    repo=repository(
+-      name='public',
+-      url='https://oss.sonatype.org/#stagingRepositories',
+-      push_db_basedir='build-support/ivy/pushdb'
+-    ),
+-    publication_metadata=ossrh(
+-      description='Jar Jar Links is a utility that makes it easy to repackage Java libraries and '
+-                  'embed them into your own distribution.',
+-      url='https://github.com/pantsbuild/jarjar',
+-      licenses=[
+-        license(
+-          name='Apache License, Version 2.0',
+-          url='http://www.apache.org/licenses/LICENSE-2.0'
+-        ),
+-      ],
+-      developers=[
+-        developer(
+-          name='The pants developers',
+-          email='pants-devel@googlegroups.com',
+-          url='https://github.com/pantsbuild/jarjar',
+-        ),
+-      ],
+-      scm=github(user='pantsbuild', repo='jarjar')
+-    )
+-  ),
+-  sources=rglobs('*.java'),
+-  resources=[
+-    ':help',
+-  ],
+-  dependencies=[
+-    'lib:ant',
+-    'lib:asm',
+-    'lib:asm-commons',
+-    'lib:maven-plugin-api',
+-  ]
+-)
+-
+-resources(
+-  name='help',
+-  sources=['help.txt'],
+-)
+-
+-jvm_binary(
+-  name='main',
+-  basename='jarjar',
+-  main='org.pantsbuild.jarjar.Main',
+-  dependencies=[
+-    ':jarjar',
+-  ]
+-)
+-
+diff --git a/src/test/BUILD b/src/test/BUILD
+deleted file mode 100644
+index a5f94e1..0000000
+--- a/src/test/BUILD
++++ /dev/null
+@@ -1,4 +0,0 @@
+-resources(
+-  name='generics-precompiled',
+-  sources=['Generics.class']
+-)
+diff --git a/src/test/java/org/pantsbuild/jarjar/BUILD b/src/test/java/org/pantsbuild/jarjar/BUILD
+deleted file mode 100644
+index 6d784ab..0000000
+--- a/src/test/java/org/pantsbuild/jarjar/BUILD
++++ /dev/null
+@@ -1,20 +0,0 @@
+-junit_tests(
+-  name='jarjar',
+-  sources=globs('*.java'),
+-  resources=[
+-    'src/test:generics-precompiled',
+-    ':method-rewriter-input',
+-  ],
+-  dependencies=[
+-    'lib:asm',
+-    'lib:junit',
+-    'src/main/java/org/pantsbuild/jarjar',
+-    'src/test/java/org/pantsbuild/jarjar/integration',
+-    'src/test/java/org/pantsbuild/jarjar/example',
+-  ]
+-)
+-
+-resources(
+-  name='method-rewriter-input',
+-  sources=['BigtableIO$Write.class']
+-)
+diff --git a/src/test/java/org/pantsbuild/jarjar/example/BUILD b/src/test/java/org/pantsbuild/jarjar/example/BUILD
+deleted file mode 100644
+index 4d231d6..0000000
+--- a/src/test/java/org/pantsbuild/jarjar/example/BUILD
++++ /dev/null
+@@ -1,4 +0,0 @@
+-java_library(
+-  name='example',
+-  sources=['Example.java'],
+-)
+diff --git a/src/test/java/org/pantsbuild/jarjar/integration/BUILD b/src/test/java/org/pantsbuild/jarjar/integration/BUILD
+deleted file mode 100644
+index 1269b80..0000000
+--- a/src/test/java/org/pantsbuild/jarjar/integration/BUILD
++++ /dev/null
+@@ -1,35 +0,0 @@
+-target(
+-  name='integration',
+-  dependencies=[
+-    ':java_versions',
+-    ':bad_packages',
+-  ],
+-)
+-
+-java_library(
+-  name='base',
+-  sources=[
+-    'IntegrationTestBase.java',
+-    'FileTree.java',
+-    'ProcessCommunicator.java',
+-    'JarJarFailedException.java',
+-  ],
+-  dependencies=[
+-    'lib:asm',
+-    'lib:commons-lang3',
+-    'lib:junit',
+-  ],
+-)
+-
+-junit_tests(
+-  name='java_versions',
+-  sources=['JavaVersionsTest.java'],
+-  test_platform='java8',
+-  dependencies=[':base'],
+-)
+-
+-junit_tests(
+-  name='bad_packages',
+-  sources=['BadPackagesTest.java'],
+-  dependencies=[':base'],
+-)
+-- 
+2.49.0
+
